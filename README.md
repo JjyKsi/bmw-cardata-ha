@@ -51,15 +51,25 @@ Turn your BMW CarData stream into native Home Assistant entities. This integrati
 
 ## BMW Portal Setup (DON'T SKIP, DO THIS FIRST)
 
-The CarData web portal isn’t available everywhere (e.g., it’s disabled in Finland). You can still enable streaming by logging into https://www.bmw.de/de-de/mybmw/vehicle-overview and following these steps:
+The CarData web portal isn’t available everywhere (e.g., it’s disabled in Finland). You can still enable streaming by logging in by using supported region. It doesn't matter which language you select - all the generated Id and configuration is shared between all of them. 
+
+### BMW 
+
+- https://www.bmw.co.uk/en-gb/mybmw/vehicle-overview (in English)
+- https://www.bmw.de/de-de/mybmw/vehicle-overview (in German)
+
+### Mini
+
+- https://www.mini.co.uk/en-gb/mymini/vehicle-overview (in English)
+- https://www.mini.de/de-de/mymini/vehicle-overview (in German)
 
 1. Select the vehicle you want to stream.
-2. Choose **BMW CarData**.
+2. Choose **BMW CarData** or **Mini CarData**.
 3. Generate a client ID as described here: https://bmw-cardata.bmwgroup.com/customer/public/api-documentation/Id-Technical-registration_Step-1
-4. Subscribe the client to both scopes: `cardata:api:read` and `cardata:streaming:read` and click authorize.
-4.1. Note, BMW portal seems to have some problems with scope selection. If you see an error on the top of the page, reload it, select one scope and wait for +30 seconds, then select the another one and wait agin.
-5. Scroll to the **Data Selection** section (`Datenauswahl ändern`) and load all descriptors (keep clicking “Load more”).
-6. Check every descriptor you want to stream. To automate this, open the browser console and run:
+4. Subscribe the client to both scopes: `cardata:api:read` (Request access to CarData API) and `cardata:streaming:read` (CarData Stream) and click authorize.
+   Note, BMW portal seems to have some problems with scope selection. If you see an error on the top of the page, reload it, select one scope and wait for +30 seconds, then select the another one and wait agin. 
+6. Scroll to the **Data Selection** section (`Datenauswahl ändern`) and load all descriptors (keep clicking “Load more”).
+7. Check every descriptor you want to stream. To automate this, open the browser console and run:
 ```js
 (() => {
   const labels = document.querySelectorAll('.css-k008qs label.chakra-checkbox');
