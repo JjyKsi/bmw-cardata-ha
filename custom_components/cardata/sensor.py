@@ -28,7 +28,9 @@ class CardataSensor(CardataEntity, SensorEntity):
         super().__init__(coordinator, vin, descriptor)
         self._attr_should_poll = False
         self._unsubscribe = None
-
+        if self._descriptor == "vehicle.vehicle.travelledDistance":
+            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+    
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         if getattr(self, "_attr_native_value", None) is None:
