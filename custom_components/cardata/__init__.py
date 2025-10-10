@@ -15,6 +15,7 @@ from typing import Any, Deque, Dict, List, Optional
 import aiohttp
 import voluptuous as vol
 
+from homeassistant.const import Platform
 from homeassistant.config_entries import ConfigEntry, SOURCE_REAUTH
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
@@ -56,7 +57,11 @@ from .debug import set_debug_enabled
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[str] = ["sensor", "binary_sensor"]
+PLATFORMS: list[str] = [
+    Platform.SENSOR,
+    Platform.BINARY_SENSOR,
+    Platform.DEVICE_TRACKER
+]
 
 @dataclass
 class CardataRuntimeData:

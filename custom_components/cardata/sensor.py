@@ -380,6 +380,16 @@ async def async_setup_entry(
         ensure_soc_tracking_entities(vin)
         if (vin, descriptor) in entities:
             return
+        
+        # Filter out location descriptors - these are used by device_tracker only
+        location_descriptors = [
+            "vehicle.cabin.infotainment.navigation.currentLocation.latitude",
+            "vehicle.cabin.infotainment.navigation.currentLocation.longitude",
+            "vehicle.cabin.infotainment.navigation.currentLocation.heading",
+        ]
+        if descriptor in location_descriptors:
+            return
+        
         state = coordinator.get_state(vin, descriptor)
         if state:
             if isinstance(state.value, bool):
