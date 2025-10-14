@@ -22,6 +22,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import DOMAIN
 from .coordinator import CardataCoordinator
@@ -75,7 +76,7 @@ async def async_setup_entry(
     config_entry.async_on_unload(unsub)
 
 
-class CardataDeviceTracker(CardataEntity, TrackerEntity):
+class CardataDeviceTracker(CardataEntity, TrackerEntity, RestoreEntity):
     """BMW CarData device tracker."""
 
     _attr_force_update = False
@@ -89,10 +90,23 @@ class CardataDeviceTracker(CardataEntity, TrackerEntity):
         self._unsubscribe = None
         self._base_name = "Location"
         self._update_name(write_state=False)
+        self._restored_lat = None
+        self._restored_lon = None
 
     async def async_added_to_hass(self) -> None:
         """Handle entity added to Home Assistant."""
         await super().async_added_to_hass()
+        if (state := await self.async_get_last_state()) is not None:
+            lat = state.attributes.get("latitude")
+            lon = state.attributes.get("longitude")
+            if lat is not None and lon is not None:
+                try:
+                    self._restored_lat = float(lat)
+                    self._restored_lon = float(lon)
+                    _LOGGER.debug("Restored last known location for %s: %s, %s", self._vin, lat, lon)
+                except (TypeError, ValueError):
+                    pass
+
         self._unsubscribe = async_dispatcher_connect(
             self.hass,
             self._coordinator.signal_update,
@@ -146,13 +160,15 @@ class CardataDeviceTracker(CardataEntity, TrackerEntity):
     @property
     def latitude(self) -> float | None:
         """Return latitude value of the device."""
-        return self._fetch_coordinate(
+        lat = self._fetch_coordinate(
             "vehicle.cabin.infotainment.navigation.currentLocation.latitude"
         )
+        return lat if lat is not None else self._restored_lat
 
     @property
     def longitude(self) -> float | None:
         """Return longitude value of the device."""
-        return self._fetch_coordinate(
+        lon = self._fetch_coordinate(
             "vehicle.cabin.infotainment.navigation.currentLocation.longitude"
         )
+        return lon if lon is not None else self._restored_lon
