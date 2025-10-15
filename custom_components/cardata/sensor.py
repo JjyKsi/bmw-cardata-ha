@@ -391,7 +391,6 @@ async def async_setup_entry(
         location_descriptors = [
             "vehicle.cabin.infotainment.navigation.currentLocation.latitude",
             "vehicle.cabin.infotainment.navigation.currentLocation.longitude",
-            "vehicle.cabin.infotainment.navigation.currentLocation.heading",
         ]
         if descriptor in location_descriptors:
             return
