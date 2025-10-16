@@ -189,7 +189,6 @@ class CardataSocEstimateSensor(CardataEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.BATTERY
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = "%"
-    _attr_icon = "mdi:battery-clock"
 
     def __init__(self, coordinator: CardataCoordinator, vin: str) -> None:
         super().__init__(coordinator, vin, "soc_estimate")
@@ -243,9 +242,9 @@ class CardataSocEstimateSensor(CardataEntity, SensorEntity):
 
 class CardataTestingSocEstimateSensor(CardataEntity, SensorEntity):
     _attr_should_poll = False
+    _attr_device_class = SensorDeviceClass.BATTERY    
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = "%"
-    _attr_icon = "mdi:battery-clock"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator: CardataCoordinator, vin: str) -> None:
