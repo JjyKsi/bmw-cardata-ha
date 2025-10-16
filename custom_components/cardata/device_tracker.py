@@ -1,4 +1,4 @@
-"""Device tracker for BMW CarData vehicles."""
+"""Device tracker for BMW CarData vehicles with hybrid coordinate update logic."""
 
 from __future__ import annotations
 
@@ -30,14 +30,11 @@ from .coordinator import CardataCoordinator
 from .entity import CardataEntity
 
 PARALLEL_UPDATES = 0
-
 _LOGGER = logging.getLogger(__name__)
 
 LOCATION_DESCRIPTORS = (
     "vehicle.cabin.infotainment.navigation.currentLocation.latitude",
     "vehicle.cabin.infotainment.navigation.currentLocation.longitude",
-    "vehicle.trip.segment.end.vehicleLocation.gpsPosition.latitude",
-    "vehicle.trip.segment.end.vehicleLocation.gpsPosition.longitude",
 )
 
 
@@ -78,7 +75,7 @@ async def async_setup_entry(
 
 
 class CardataDeviceTracker(CardataEntity, TrackerEntity, RestoreEntity):
-    """BMW CarData device tracker."""
+    """BMW CarData device tracker with intelligent update handling."""
 
     _attr_force_update = False
     _attr_translation_key = "car"
@@ -91,15 +88,19 @@ class CardataDeviceTracker(CardataEntity, TrackerEntity, RestoreEntity):
         self._unsubscribe = None
         self._base_name = "Location"
         self._update_name(write_state=False)
-        self._restored_lat = None
-        self._restored_lon = None
+
+        self._restored_lat: float | None = None
+        self._restored_lon: float | None = None
 
         """Ensure both lat and long are updated"""
-        self._last_lat = None
-        self._last_lon = None
-        self._last_lat_time = 0
-        self._last_lon_time = 0
-        self._update_delay = 3  # seconds allowed between coordinate updates
+        self._last_lat: float | None = None
+        self._last_lon: float | None = None
+        self._last_lat_time: float = 0
+        self._last_lon_time: float = 0
+
+        """Thresholds"""
+        self._short_delay = 3       # seconds for real-time update window
+        self._max_delay = 180       # seconds (3 minutes) for delayed acceptance
 
     async def async_added_to_hass(self) -> None:
         """Handle entity added to Home Assistant."""
@@ -111,7 +112,12 @@ class CardataDeviceTracker(CardataEntity, TrackerEntity, RestoreEntity):
                 try:
                     self._restored_lat = float(lat)
                     self._restored_lon = float(lon)
-                    _LOGGER.debug("Restored last known location for %s: %s, %s", self._vin, lat, lon)
+                    _LOGGER.debug(
+                        "Restored last known location for %s: %s, %s",
+                        self._vin,
+                        lat,
+                        lon,
+                    )
                 except (TypeError, ValueError):
                     pass
 
@@ -150,30 +156,69 @@ class CardataDeviceTracker(CardataEntity, TrackerEntity, RestoreEntity):
                 self._last_lon_time = now
                 updated = True
 
-        """Ensure both lat and long are updated within the allowed delay"""
-        if (
-            self._last_lat is not None
-            and self._last_lon is not None
-            and abs(self._last_lat_time - self._last_lon_time) <= self._update_delay
+        if not updated:
+            return
+
+        lat, lon = self._last_lat, self._last_lon
+        lat_time, lon_time = self._last_lat_time, self._last_lon_time
+
+        # Skip until both exist
+        if lat is None or lon is None:
+            return
+
+        time_diff = abs(lat_time - lon_time)
+
+        # Near simultaneous update (real)
+        if time_diff <= self._short_delay:
+            self._apply_new_coordinates(lat, lon, "real-time pair")
+
+        # Delayed but both changed compared to tracker
+        elif (
+            time_diff <= self._max_delay
+            and self._restored_lat is not None
+            and self._restored_lon is not None
+            and lat != self._restored_lat
+            and lon != self._restored_lon
         ):
-            self._restored_lat = self._last_lat
-            self._restored_lon = self._last_lon
-            self.schedule_update_ha_state()
-            _LOGGER.debug(
-                "Location updated for %s: lat=%s lon=%s",
-                self._vin,
-                self._last_lat,
-                self._last_lon,
+            self._apply_new_coordinates(lat, lon, "delayed valid pair")
+
+        # Only one differs, interpolate only the older coordinate
+        elif self._restored_lat is not None and self._restored_lon is not None:
+            only_one_differs = (
+                (lat != self._restored_lat) ^ (lon != self._restored_lon)
             )
-        elif updated:
+            if only_one_differs:
+                if lat_time > lon_time:
+                    # Latitude is newer
+                    interp_lat = lat
+                    interp_lon = (lon + self._restored_lon) / 2
+                    reason = "interpolated (older lon)"
+                else:
+                    # Longitude is newer
+                    interp_lat = (lat + self._restored_lat) / 2
+                    interp_lon = lon
+                    reason = "interpolated (older lat)"
+                self._apply_new_coordinates(interp_lat, interp_lon, reason)
+
+        else:
             _LOGGER.debug(
-                "Partial coordinate update for %s: lat=%s (t=%.2f), lon=%s (t=%.2f)",
+                "Ignored update for %s (time diff %.1fs, unchanged coords)",
                 self._vin,
-                self._last_lat,
-                self._last_lat_time,
-                self._last_lon,
-                self._last_lon_time,
+                time_diff,
             )
+
+    def _apply_new_coordinates(self, lat: float, lon: float, reason: str) -> None:
+        """Apply new coordinates and trigger HA state update."""
+        self._restored_lat = lat
+        self._restored_lon = lon
+        self.schedule_update_ha_state()
+        _LOGGER.debug(
+            "Location updated for %s (%s): lat=%.6f lon=%.6f",
+            self._vin,
+            reason,
+            lat,
+            lon,
+        )
 
     @property
     def source_type(self) -> SourceType | str:
@@ -193,6 +238,7 @@ class CardataDeviceTracker(CardataEntity, TrackerEntity, RestoreEntity):
         return attrs
 
     def _fetch_coordinate(self, descriptor: str) -> float | None:
+        """Fetch coordinate from coordinator."""
         state = self._coordinator.get_state(self._vin, descriptor)
         if state and state.value is not None:
             try:
@@ -208,10 +254,10 @@ class CardataDeviceTracker(CardataEntity, TrackerEntity, RestoreEntity):
 
     @property
     def latitude(self) -> float | None:
-        """Return latitude value of the device."""
+        """Return last known latitude of the device."""
         return self._restored_lat
 
     @property
     def longitude(self) -> float | None:
-        """Return longitude value of the device."""
+        """Return last known longitude of the device."""
         return self._restored_lon
