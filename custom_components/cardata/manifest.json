@@ -9,6 +9,6 @@
   "documentation": "https://github.com/JjyKsi/bmw-cardata-ha/",
   "iot_class": "cloud_push",
   "requirements": [],
-  "version": "0.2.13",
+  "version": "0.2.14",
   "integration_type": "device"
 }
