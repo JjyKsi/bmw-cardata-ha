@@ -81,6 +81,7 @@ class CardataDeviceTracker(CardataEntity, TrackerEntity):
     _attr_force_update = False
     _attr_translation_key = "car"
     _attr_name = None
+    _attr_entity_category = None
 
     def __init__(self, coordinator: CardataCoordinator, vin: str) -> None:
         """Initialize the tracker."""
